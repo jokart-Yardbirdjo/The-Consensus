@@ -97,7 +97,7 @@
         <div style="font-size:0.8rem; color:var(--text-muted);">Use your phone as a controller</div>
         
         <div style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">
-            Version 0.9<br>
+            Version 1.0<br>
             <span style="font-weight: normal; color: #666;">Karthik Raja Developer</span>
         </div>
     </div>
@@ -240,9 +240,18 @@
     };
 
     window.onload = () => {
+        // Auto-load saved API key
         const savedKey = localStorage.getItem('consensus_openai_key');
         if (savedKey) {
             document.getElementById('api-key-input').value = savedKey;
+        }
+
+        // NEW: Check for QR Code URL parameters and auto-join
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomFromUrl = urlParams.get('room');
+        if (roomFromUrl) {
+            handleJoinScreen();
+            document.getElementById('join-code').value = roomFromUrl.toUpperCase();
         }
     };
 
@@ -593,8 +602,11 @@
         
         document.getElementById('host-leaderboard-screen').classList.add('hidden');
         document.getElementById('host-play-screen').classList.remove('hidden');
-        document.getElementById('host-next-btn').classList.add('hidden');
+        
+        // BUG FIX: UNHIDE THE NEXT BUTTON SO AUTO-ADVANCE KNOWS WHAT TO DO
+        document.getElementById('host-next-btn').classList.remove('hidden'); 
         document.getElementById('host-score-btn').classList.add('hidden');
+        
         document.getElementById('host-reveal-area').classList.add('hidden');
         document.getElementById('host-double-badge').classList.add('hidden');
 
@@ -762,7 +774,7 @@
                 startNextRound();
             }
 
-        }, 5000); 
+        }, 6000); 
     }
 
     function renderLeaderboard() {
