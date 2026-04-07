@@ -50,10 +50,12 @@
         .leaderboard-row { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 15px 20px; border-radius: 12px; margin-bottom: 12px; font-weight: bold; border: 2px solid var(--border); transition: all 0.3s; }
         
         /* Client Screen Specifics */
-        .client-wait { font-size: 1.5rem; font-weight: bold; color: var(--text-muted); margin-top: 50px; animation: pulse 2s infinite; }
+        .client-wait { font-size: 1.5rem; font-weight: bold; color: var(--text-muted); margin-top: 50px; line-height: 1.4; }
+        .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         
         .client-type-badge { font-size: 1.6rem; font-weight: 900; color: var(--brand); text-transform: uppercase; margin-bottom: 5px; line-height: 1.2; }
+        .client-prompt-text { font-size: 1.3rem; margin-bottom: 15px; font-weight: bold; color: var(--highlight); line-height: 1.3; }
         
         .big-hand-btn { background: var(--p1); color: #000; height: 150px; font-size: 4rem; border-radius: 30px; box-shadow: 0 10px 30px rgba(56, 189, 248, 0.4); }
         .big-hand-btn.raised { background: var(--surface); color: var(--text-muted); box-shadow: none; }
@@ -97,7 +99,7 @@
         <div style="font-size:0.8rem; color:var(--text-muted);">Use your phone as a controller</div>
         
         <div style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">
-            Version 1.0<br>
+            Version 1.1<br>
             <span style="font-weight: normal; color: #666;">Karthik Raja Developer</span>
         </div>
     </div>
@@ -107,7 +109,7 @@
         <input type="text" id="join-code" placeholder="4-LETTER CODE" maxlength="4" style="text-transform:uppercase; letter-spacing:5px; font-size: 1.5rem;">
         <input type="text" id="join-name" placeholder="Your Name" maxlength="12">
         <button class="btn btn-main" onclick="joinRoom()">JOIN</button>
-        <button class="btn btn-surface" onclick="location.reload()">BACK</button>
+        <button class="btn btn-surface" onclick="window.location.href = window.location.pathname;">BACK</button>
         <div id="join-feedback" style="color:var(--fail); margin-top:15px; font-weight:bold;"></div>
     </div>
 
@@ -189,11 +191,14 @@
     </div>
 
     <div id="client-play-screen" class="hidden">
-        <div id="client-wait-msg" class="client-wait">Waiting for game to start...</div>
+        <div id="client-wait-msg" class="client-wait pulse">Waiting for game to start...</div>
         
         <div id="client-double-badge" class="status-badge hidden" style="background: var(--fail); color: white; margin: 10px auto; display: block; width: fit-content;">🔥 DOUBLE POINTS!</div>
 
         <div id="client-type-badge" class="client-type-badge hidden">THE FINGER POINT</div>
+        
+        <div id="client-prompt" class="client-prompt-text hidden"></div>
+
         <div id="client-timer" class="timer-display hidden" style="font-size: 3.5rem; margin-bottom: 20px;">20</div>
         
         <div id="client-ui-container" class="hidden"></div>
@@ -240,13 +245,11 @@
     };
 
     window.onload = () => {
-        // Auto-load saved API key
         const savedKey = localStorage.getItem('consensus_openai_key');
         if (savedKey) {
             document.getElementById('api-key-input').value = savedKey;
         }
 
-        // NEW: Check for QR Code URL parameters and auto-join
         const urlParams = new URLSearchParams(window.location.search);
         const roomFromUrl = urlParams.get('room');
         if (roomFromUrl) {
@@ -318,7 +321,6 @@
         }
     }
 
-    // --- NAVIGATION & LOBBY LOGIC ---
     function handleHostSetup() {
         document.getElementById('menu-screen').classList.add('hidden');
         document.getElementById('host-lobby-screen').classList.remove('hidden');
@@ -369,7 +371,8 @@
 
     async function cancelLobby() {
         if (roomCode) await db.ref(`consensus_rooms/${roomCode}`).remove(); 
-        location.reload();
+        // FIX: Strip query parameters on reload to prevent QR loop
+        window.location.href = window.location.pathname;
     }
 
     async function joinRoom() {
@@ -394,7 +397,7 @@
         db.ref(`consensus_rooms/${roomCode}`).on('value', snap => {
             if (!snap.exists()) {
                 alert("The Host has ended the game!");
-                location.reload();
+                window.location.href = window.location.pathname;
             }
         });
 
@@ -489,7 +492,6 @@
                 const data = await response.json();
                 gameQuestions = JSON.parse(data.choices[0].message.content).questions; 
                 
-                // INJECT DOUBLE POINTS ROUNDS (Excluding index 0 / Round 1)
                 const numDoubleRounds = Math.floor(numRounds / 5);
                 let availableIndices = [];
                 for (let i = 1; i < numRounds; i++) availableIndices.push(i);
@@ -528,7 +530,6 @@
                 
                 gameQuestions = gameQuestions.sort(() => 0.5 - Math.random());
                 
-                // INJECT DOUBLE POINTS ROUNDS (Excluding index 0 / Round 1)
                 const numDoubleRounds = Math.floor(numRounds / 5);
                 let availableIndices = [];
                 for (let i = 1; i < numRounds; i++) availableIndices.push(i);
@@ -557,7 +558,6 @@
         startNextRound();
     }
 
-    // --- TIMER & AUTO-ADVANCE LOGIC ---
     function startCountdown(duration) {
         clearInterval(countdownTimer);
         currentHostTime = duration;
@@ -603,7 +603,6 @@
         document.getElementById('host-leaderboard-screen').classList.add('hidden');
         document.getElementById('host-play-screen').classList.remove('hidden');
         
-        // BUG FIX: UNHIDE THE NEXT BUTTON SO AUTO-ADVANCE KNOWS WHAT TO DO
         document.getElementById('host-next-btn').classList.remove('hidden'); 
         document.getElementById('host-score-btn').classList.add('hidden');
         
@@ -678,6 +677,7 @@
         }
     }
 
+    // --- OVERHAULED SCORING ENGINE (HANDLES TIES PROPERLY) ---
     async function calculateAndShowScores() {
         clearInterval(countdownTimer);
         document.getElementById('host-timer').classList.add('hidden');
@@ -686,8 +686,6 @@
         document.getElementById('host-next-btn').classList.add('hidden');
         document.getElementById('host-score-btn').classList.add('hidden');
         
-        await db.ref(`consensus_rooms/${roomCode}/hostState`).set({ phase: 'reveal' });
-
         const q = gameQuestions[currentRoundIdx];
         const revealArea = document.getElementById('host-reveal-area');
         revealArea.classList.remove('hidden');
@@ -695,29 +693,45 @@
         
         let updates = {};
         const mult = q.isDoublePoints ? 2 : 1;
+        let roundEarnings = {}; 
+        Object.keys(connectedPlayers).forEach(pid => roundEarnings[pid] = 0);
 
         if (q.type === 1) {
             let votes = {};
             Object.values(connectedPlayers).forEach(p => {
                 if(p.guess1) votes[p.guess1] = (votes[p.guess1] || 0) + 1;
             });
-            let sorted = Object.keys(votes).sort((a,b) => votes[b] - votes[a]);
-            revealArea.innerHTML = `Most Voted: <strong style="color:var(--brand)">${connectedPlayers[sorted[0]]?.name || 'Nobody'}</strong>`;
             
-            if(sorted[0]) updates[`consensus_rooms/${roomCode}/players/${sorted[0]}/score`] = connectedPlayers[sorted[0]].score + (3 * mult);
-            if(sorted[1]) updates[`consensus_rooms/${roomCode}/players/${sorted[1]}/score`] = connectedPlayers[sorted[1]].score + (2 * mult);
-            if(sorted[2]) updates[`consensus_rooms/${roomCode}/players/${sorted[2]}/score`] = connectedPlayers[sorted[2]].score + (1 * mult);
+            let voteGroups = {};
+            Object.keys(votes).forEach(pid => {
+                let v = votes[pid];
+                if(!voteGroups[v]) voteGroups[v] = [];
+                voteGroups[v].push(pid);
+            });
+            let sortedVoteCounts = Object.keys(voteGroups).map(Number).sort((a,b) => b - a);
+
+            if(sortedVoteCounts.length > 0) {
+                let winners = voteGroups[sortedVoteCounts[0]];
+                let names = winners.map(pid => connectedPlayers[pid]?.name || 'Nobody').join(" & ");
+                revealArea.innerHTML = `Most Voted: <strong style="color:var(--brand)">${names}</strong> <span style="font-size:0.7em; color:var(--text-muted)">(${sortedVoteCounts[0]} votes)</span>`;
+                
+                if(sortedVoteCounts[0]) voteGroups[sortedVoteCounts[0]].forEach(pid => roundEarnings[pid] = 3 * mult);
+                if(sortedVoteCounts[1]) voteGroups[sortedVoteCounts[1]].forEach(pid => roundEarnings[pid] = 2 * mult);
+                if(sortedVoteCounts[2]) voteGroups[sortedVoteCounts[2]].forEach(pid => roundEarnings[pid] = 1 * mult);
+            } else {
+                revealArea.innerHTML = `Most Voted: <strong style="color:var(--brand)">Nobody</strong>`;
+            }
         } 
         else if (q.type === 2) {
             let aVotes = 0, bVotes = 0;
             Object.values(connectedPlayers).forEach(p => p.guess1 === 'A' ? aVotes++ : bVotes++);
             let roomWinner = aVotes > bVotes ? 'A' : (bVotes > aVotes ? 'B' : 'Tie');
             
-            revealArea.innerHTML = `The Room Chose: <strong style="color:var(--brand)">${roomWinner === 'A' ? q.optA : q.optB}</strong>`;
+            revealArea.innerHTML = `The Room Chose: <strong style="color:var(--brand)">${roomWinner === 'A' ? q.optA : (roomWinner === 'B' ? q.optB : 'Tie')}</strong>`;
             
             Object.keys(connectedPlayers).forEach(pid => {
                 if (connectedPlayers[pid].guess2 === roomWinner) {
-                    updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (3 * mult);
+                    roundEarnings[pid] = 3 * mult;
                 }
             });
         }
@@ -726,7 +740,7 @@
             Object.keys(connectedPlayers).forEach(pid => {
                 let g = connectedPlayers[pid].guess1;
                 let pts = g === 0 ? 3 : (g === 1 ? 2 : (g === 2 ? 1 : 0));
-                updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (pts * mult);
+                roundEarnings[pid] = pts * mult;
             });
         }
         else if (q.type === 4) {
@@ -736,7 +750,7 @@
             
             Object.keys(connectedPlayers).forEach(pid => {
                 if (parseInt(connectedPlayers[pid].guess2) === raised) {
-                    updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (3 * mult);
+                    roundEarnings[pid] = 3 * mult;
                 }
             });
         }
@@ -749,15 +763,37 @@
                     diffs.push({ pid: pid, diff: Math.abs(q.answer - parseInt(connectedPlayers[pid].guess1)) });
                 }
             });
-            diffs.sort((a,b) => a.diff - b.diff);
             
-            if(diffs[0]) updates[`consensus_rooms/${roomCode}/players/${diffs[0].pid}/score`] = connectedPlayers[diffs[0].pid].score + (3 * mult);
-            if(diffs[1]) updates[`consensus_rooms/${roomCode}/players/${diffs[1].pid}/score`] = connectedPlayers[diffs[1].pid].score + (2 * mult);
-            if(diffs[2]) updates[`consensus_rooms/${roomCode}/players/${diffs[2].pid}/score`] = connectedPlayers[diffs[2].pid].score + (1 * mult);
+            let diffGroups = {};
+            diffs.forEach(d => {
+                if(!diffGroups[d.diff]) diffGroups[d.diff] = [];
+                diffGroups[d.diff].push(d.pid);
+            });
+            let sortedDiffs = Object.keys(diffGroups).map(Number).sort((a,b) => a - b);
+
+            if(sortedDiffs.length > 0) {
+                let closest = diffGroups[sortedDiffs[0]];
+                let names = closest.map(pid => connectedPlayers[pid]?.name || 'Nobody').join(" & ");
+                revealArea.innerHTML += `<br><br>Closest: <strong style="color:var(--p2)">${names}</strong> <span style="font-size:0.7em; color:var(--text-muted)">(Off by ${sortedDiffs[0]})</span>`;
+                
+                if(sortedDiffs[0]) diffGroups[sortedDiffs[0]].forEach(pid => roundEarnings[pid] = 3 * mult);
+                if(sortedDiffs[1]) diffGroups[sortedDiffs[1]].forEach(pid => roundEarnings[pid] = 2 * mult);
+                if(sortedDiffs[2]) diffGroups[sortedDiffs[2]].forEach(pid => roundEarnings[pid] = 1 * mult);
+            }
         }
+
+        // Apply earnings to total scores
+        Object.keys(roundEarnings).forEach(pid => {
+            if(roundEarnings[pid] > 0) {
+                updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + roundEarnings[pid];
+            }
+        });
 
         if(Object.keys(updates).length > 0) await db.ref().update(updates);
         
+        // Let the clients know exactly what they earned this round
+        await db.ref(`consensus_rooms/${roomCode}/hostState`).set({ phase: 'reveal', roundEarnings: roundEarnings });
+
         if (currentRoundIdx + 1 < numRounds) {
             revealArea.innerHTML += `<div style="margin-top: 25px; font-size: 1.2rem; color: var(--p4); font-weight: bold; text-transform: uppercase; animation: pulse 1.5s infinite;">Get ready for the next round...</div>`;
         }
@@ -774,7 +810,7 @@
                 startNextRound();
             }
 
-        }, 6000); 
+        }, 8000); 
     }
 
     function renderLeaderboard() {
@@ -805,18 +841,27 @@
         const typeBadge = document.getElementById('client-type-badge');
         const dblBadge = document.getElementById('client-double-badge');
         const timer = document.getElementById('client-timer');
+        const clientPrompt = document.getElementById('client-prompt');
         
-        if (state.phase === 'reveal' || state.phase === 'waiting' || state.phase === 'loading') {
+        if (state.phase === 'reveal' || state.phase === 'waiting') {
             ui.classList.add('hidden');
             typeBadge.classList.add('hidden');
             dblBadge.classList.add('hidden');
             timer.classList.add('hidden');
+            clientPrompt.classList.add('hidden');
             waitMsg.classList.remove('hidden');
             
             if (state.phase === 'waiting') {
-                waitMsg.innerText = "Waiting for game to start...";
-            } else {
-                waitMsg.innerText = "Look at the TV!";
+                waitMsg.classList.add('pulse');
+                waitMsg.innerHTML = "Waiting for game to start...";
+            } else if (state.phase === 'reveal') {
+                waitMsg.classList.remove('pulse');
+                let earned = state.roundEarnings ? (state.roundEarnings[myPlayerId] || 0) : 0;
+                if(earned > 0) {
+                    waitMsg.innerHTML = `<span style="color:var(--success); font-size:2.5rem; font-weight:900;">+${earned} POINTS!</span><br><br><span style="font-size:1rem; color:var(--text-muted);">Look at the TV for full results!</span>`;
+                } else {
+                    waitMsg.innerHTML = `<span style="color:var(--fail); font-size:2.5rem; font-weight:900;">0 POINTS</span><br><br><span style="font-size:1rem; color:var(--text-muted);">Look at the TV for full results!</span>`;
+                }
             }
             return;
         }
@@ -825,6 +870,7 @@
         waitMsg.classList.add('hidden');
         typeBadge.classList.remove('hidden');
         timer.classList.remove('hidden');
+        clientPrompt.classList.remove('hidden');
         
         typeBadge.innerText = ROUND_TYPES[state.type];
 
@@ -836,6 +882,14 @@
 
         ui.innerHTML = "";
         const q = state.qData;
+
+        // Display correct prompt text on phone depending on phase
+        if (state.phase === 'input2') {
+            if (state.type === 2) clientPrompt.innerText = "What did the ROOM pick?";
+            if (state.type === 4) clientPrompt.innerText = "Guess how many total hands are raised!";
+        } else {
+            clientPrompt.innerText = q.prompt;
+        }
 
         if (state.type === 1 && state.phase === 'input1') {
             db.ref(`consensus_rooms/${roomCode}/players`).once('value', snap => {
@@ -859,7 +913,6 @@
                 ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess1', 'A')">${q.optA}</button>`;
                 ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess1', 'B')">${q.optB}</button>`;
             } else if (state.phase === 'input2') {
-                ui.innerHTML += `<div style="margin-bottom:15px; font-weight:bold; font-size: 1.2rem;">What did the room pick?</div>`;
                 ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess2', 'A')">${q.optA}</button>`;
                 ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess2', 'B')">${q.optB}</button>`;
             }
