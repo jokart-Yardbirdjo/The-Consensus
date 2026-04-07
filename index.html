@@ -99,7 +99,7 @@
         <div style="font-size:0.8rem; color:var(--text-muted);">Use your phone as a controller</div>
         
         <div style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">
-            Version 1.1<br>
+            Version 1.2<br>
             <span style="font-weight: normal; color: #666;">Karthik Raja Developer</span>
         </div>
     </div>
@@ -776,9 +776,10 @@
                 let names = closest.map(pid => connectedPlayers[pid]?.name || 'Nobody').join(" & ");
                 revealArea.innerHTML += `<br><br>Closest: <strong style="color:var(--p2)">${names}</strong> <span style="font-size:0.7em; color:var(--text-muted)">(Off by ${sortedDiffs[0]})</span>`;
                 
-                if(sortedDiffs[0]) diffGroups[sortedDiffs[0]].forEach(pid => roundEarnings[pid] = 3 * mult);
-                if(sortedDiffs[1]) diffGroups[sortedDiffs[1]].forEach(pid => roundEarnings[pid] = 2 * mult);
-                if(sortedDiffs[2]) diffGroups[sortedDiffs[2]].forEach(pid => roundEarnings[pid] = 1 * mult);
+                // FIX: Explicitly check for !== undefined so '0' doesn't get skipped!
+                if(sortedDiffs[0] !== undefined) diffGroups[sortedDiffs[0]].forEach(pid => roundEarnings[pid] = 3 * mult);
+                if(sortedDiffs[1] !== undefined) diffGroups[sortedDiffs[1]].forEach(pid => roundEarnings[pid] = 2 * mult);
+                if(sortedDiffs[2] !== undefined) diffGroups[sortedDiffs[2]].forEach(pid => roundEarnings[pid] = 1 * mult);
             }
         }
 
@@ -806,11 +807,14 @@
                 renderLeaderboard();
                 document.getElementById('host-leaderboard-screen').classList.remove('hidden');
                 document.getElementById('host-next-round-btn').innerText = "END GAME & RETURN TO MENU";
+                
+                // NEW: Tell all clients the game is officially over
+                db.ref(`consensus_rooms/${roomCode}/hostState`).set({ phase: 'gameover' });
             } else {
                 startNextRound();
             }
 
-        }, 8000); 
+        }, 8000);
     }
 
     function renderLeaderboard() {
@@ -843,7 +847,7 @@
         const timer = document.getElementById('client-timer');
         const clientPrompt = document.getElementById('client-prompt');
         
-        if (state.phase === 'reveal' || state.phase === 'waiting') {
+        if (state.phase === 'reveal' || state.phase === 'waiting' || state.phase === 'loading' || state.phase === 'gameover') {
             ui.classList.add('hidden');
             typeBadge.classList.add('hidden');
             dblBadge.classList.add('hidden');
@@ -854,6 +858,16 @@
             if (state.phase === 'waiting') {
                 waitMsg.classList.add('pulse');
                 waitMsg.innerHTML = "Waiting for game to start...";
+            } else if (state.phase === 'loading') {
+                waitMsg.classList.add('pulse');
+                waitMsg.innerHTML = "Get Ready...";
+            } else if (state.phase === 'gameover') {
+                // NEW: Show final score on the phone!
+                waitMsg.classList.remove('pulse');
+                db.ref(`consensus_rooms/${roomCode}/players/${myPlayerId}`).once('value', snap => {
+                    const p = snap.val();
+                    waitMsg.innerHTML = `<span style="color:var(--brand); font-size:2.5rem; font-weight:900;">GAME OVER!</span><br><br>Your Final Score:<br><span style="color:var(--highlight); font-size:3.5rem; font-weight:900;">${p.score}</span><br><br><span style="font-size:1rem; color:var(--text-muted);">Check the TV for the final standings!</span>`;
+                });
             } else if (state.phase === 'reveal') {
                 waitMsg.classList.remove('pulse');
                 let earned = state.roundEarnings ? (state.roundEarnings[myPlayerId] || 0) : 0;
