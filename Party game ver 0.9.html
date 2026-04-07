@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Consensus Party Game</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        :root { 
+            --brand: #f97316; --brand-glow: rgba(249, 115, 22, 0.4);
+            --bg: #0f172a; --card: #1e293b; --surface: #334155;
+            --border: #475569; --text-muted: #94a3b8; --highlight: #f8fafc;
+            --p1: #38bdf8; --p2: #a3e635; --p3: #f472b6; --p4: #fbbf24;
+            --success: #22c55e; --fail: #ef4444;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); color: white; margin: 0; display: flex; justify-content: center; min-height: 100vh; padding: 10px; }
+        .hidden { display: none !important; }
+        
+        .container { background: var(--card); padding: 1.5rem; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); text-align: center; border: 1px solid var(--border); width: 100%; max-width: 700px; margin-bottom: 20px; align-self: flex-start; }
+        
+        h1 { color: var(--brand); text-transform: uppercase; letter-spacing: 2px; font-weight: 900; margin-bottom: 5px; }
+        
+        .btn { cursor: pointer; border: none; border-radius: 12px; font-weight: 800; text-transform: uppercase; transition: 0.2s; padding: 18px; width: 100%; font-size: 1.1rem; margin-bottom: 10px; }
+        .btn-main { background: var(--brand); color: #fff; box-shadow: 0 4px 15px var(--brand-glow); }
+        .btn-main:hover:not(:disabled) { transform: scale(1.02); }
+        .btn-alt { background: var(--highlight); color: #000; }
+        .btn-surface { background: var(--surface); color: #fff; border: 2px solid var(--border); }
+        .btn-surface:hover:not(:disabled) { border-color: var(--brand); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        input[type="text"], input[type="password"], input[type="number"] { background: var(--surface); border: 2px solid var(--border); color: white; padding: 15px; border-radius: 12px; font-size: 1.2rem; width: 100%; text-align: center; margin-bottom: 15px; }
+        input:focus { border-color: var(--brand); }
+
+        .pill { background: var(--surface); border: 2px solid var(--border); color: #ccc; padding: 12px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; display: inline-block; margin: 5px; }
+        .pill.active { background: var(--brand); border-color: var(--brand); color: white; }
+
+        /* Host Screen Specifics */
+        .host-prompt { font-size: 2.2rem; font-weight: 800; line-height: 1.3; margin: 10px 0; color: var(--highlight); }
+        .host-sub-prompt { font-size: 1.2rem; color: var(--p4); text-transform: uppercase; font-weight: bold; margin-bottom: 15px; }
+        .status-badge { background: #000; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; color: var(--text-muted); font-weight: bold; letter-spacing: 1px; display: inline-block; margin-bottom: 10px; }
+        
+        .host-type-badge { font-size: 2.5rem; font-weight: 900; color: var(--brand); text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
+        .timer-display { font-size: 4.5rem; font-weight: 900; font-family: 'Courier New', Courier, monospace; color: var(--highlight); margin: 10px 0; text-shadow: 0 0 20px rgba(255,255,255,0.2); transition: color 0.3s; }
+        
+        .leaderboard-row { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 15px 20px; border-radius: 12px; margin-bottom: 12px; font-weight: bold; border: 2px solid var(--border); transition: all 0.3s; }
+        
+        /* Client Screen Specifics */
+        .client-wait { font-size: 1.5rem; font-weight: bold; color: var(--text-muted); margin-top: 50px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        .client-type-badge { font-size: 1.6rem; font-weight: 900; color: var(--brand); text-transform: uppercase; margin-bottom: 5px; line-height: 1.2; }
+        
+        .big-hand-btn { background: var(--p1); color: #000; height: 150px; font-size: 4rem; border-radius: 30px; box-shadow: 0 10px 30px rgba(56, 189, 248, 0.4); }
+        .big-hand-btn.raised { background: var(--surface); color: var(--text-muted); box-shadow: none; }
+
+        /* MODALS */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 20px; backdrop-filter: blur(5px); }
+        .modal-content { background: var(--card); border: 1px solid var(--border); padding: 25px; border-radius: 20px; max-width: 500px; width: 100%; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,0.9); max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { color: var(--brand); margin-top: 0; text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 15px;}
+        .modal-content a { color: var(--p1); text-decoration: none; font-weight: bold; }
+        .modal-content a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div id="api-help-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2>How to get an OpenAI Key</h2>
+        <ol style="padding-left: 20px; font-size: 1rem; line-height: 1.6; color: #ccc;">
+            <li>Go to <a href="https://platform.openai.com/" target="_blank">platform.openai.com</a> and create an account.</li>
+            <li>Add a payment method for billing. <em>(The game uses the gpt-4o-mini model which costs fractions of a cent per game!)</em></li>
+            <li>Navigate to the <strong>API Keys</strong> section.</li>
+            <li>Click <strong>"Create new secret key"</strong>.</li>
+            <li>Copy the key (it starts with <code>sk-</code>) and paste it into the Host Settings.</li>
+        </ol>
+        <p style="font-size: 0.9rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px;">
+            <em>Your key is stored securely in your browser's local storage and is never sent anywhere except directly to OpenAI's servers.</em>
+        </p>
+        <button class="btn btn-main" onclick="hideModal('api-help-modal')" style="margin-top: 10px;">Got it!</button>
+    </div>
+</div>
+
+<div class="container">
+    <div id="header">
+        <h1>The Consensus</h1>
+    </div>
+
+    <div id="menu-screen">
+        <button class="btn btn-main" onclick="handleHostSetup()">📺 HOST A GAME</button>
+        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 25px;">Control the board on a big screen</div>
+        <button class="btn btn-alt" onclick="handleJoinScreen()">📱 JOIN A GAME</button>
+        <div style="font-size:0.8rem; color:var(--text-muted);">Use your phone as a controller</div>
+        
+        <div style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">
+            Version 0.9<br>
+            <span style="font-weight: normal; color: #666;">Karthik Raja Developer</span>
+        </div>
+    </div>
+
+    <div id="join-screen" class="hidden">
+        <h2>Join the Party</h2>
+        <input type="text" id="join-code" placeholder="4-LETTER CODE" maxlength="4" style="text-transform:uppercase; letter-spacing:5px; font-size: 1.5rem;">
+        <input type="text" id="join-name" placeholder="Your Name" maxlength="12">
+        <button class="btn btn-main" onclick="joinRoom()">JOIN</button>
+        <button class="btn btn-surface" onclick="location.reload()">BACK</button>
+        <div id="join-feedback" style="color:var(--fail); margin-top:15px; font-weight:bold;"></div>
+    </div>
+
+    <div id="host-lobby-screen" class="hidden">
+        <h2 style="margin-top:0;">Waiting for players...</h2>
+        <div id="display-room-code" style="font-size:4rem; font-weight:900; color:var(--brand); letter-spacing:8px; margin:10px 0;">----</div>
+        <div id="qr-container" style="background: white; padding: 15px; border-radius: 12px; display: inline-block; margin-bottom: 20px;"></div>
+        
+        <div style="background:var(--surface); border-radius:12px; padding:15px; margin-bottom:20px;">
+            <div style="color:var(--text-muted); font-size:0.9rem; text-transform:uppercase; margin-bottom:10px;">Rounds</div>
+            <div id="rounds-group">
+                <div class="pill active" onclick="setRounds(5, this)">5</div>
+                <div class="pill" onclick="setRounds(10, this)">10</div>
+                <div class="pill" onclick="setRounds(15, this)">15</div>
+            </div>
+        </div>
+
+        <div style="background:var(--surface); border-radius:12px; padding:15px; margin-bottom:20px; border: 1px solid var(--border); text-align: left;">
+            <div style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; margin-bottom:10px; font-weight: bold; text-align: center;">Question Source</div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button id="btn-source-offline" class="btn btn-surface active" style="margin-bottom:0;" onclick="toggleSource('offline')">📦 Party Pack</button>
+                <button id="btn-source-ai" class="btn btn-surface" style="margin-bottom:0;" onclick="toggleSource('ai')">✨ Infinite AI</button>
+            </div>
+
+            <div id="ai-settings-panel" class="hidden">
+                <input type="password" id="api-key-input" placeholder="Paste OpenAI API Key here..." style="margin-bottom: 10px; font-size: 1rem; padding: 12px; width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 0.75rem; color: var(--success);">Key is saved securely to this browser.</div>
+                    <button class="btn btn-alt" style="width: auto; padding: 5px 10px; font-size: 0.75rem; margin: 0;" onclick="showModal('api-help-modal')">Get a key</button>
+                </div>
+            </div>
+            
+            <div id="offline-settings-panel" style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                Plays using the pre-loaded question database. Perfect for offline play or quick setups!
+            </div>
+        </div>
+
+        <div style="background:var(--surface); border-radius:12px; padding:15px; min-height:100px; margin-bottom:20px;">
+            <div style="color:var(--text-muted); font-size:0.9rem; text-transform:uppercase; margin-bottom:10px;">Players Connected (<span id="player-count">0</span>)</div>
+            <div id="lobby-player-list" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;"></div>
+        </div>
+        
+        <button class="btn btn-main" id="start-btn" onclick="generateQuestionsAndStart()" disabled>GENERATE & START</button>
+        <button class="btn btn-surface" onclick="cancelLobby()">CANCEL</button>
+    </div>
+
+    <div id="host-play-screen" class="hidden">
+        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 10px;">
+            <div class="status-badge" id="host-round-badge">ROUND 1 / 5</div>
+            <div class="status-badge hidden" id="host-double-badge" style="background: var(--fail); color: white; box-shadow: 0 0 15px rgba(239,68,68,0.5);">🔥 DOUBLE POINTS!</div>
+        </div>
+        <div id="host-type-badge" class="host-type-badge">THE FINGER POINT</div>
+        
+        <div class="host-prompt" id="host-prompt">Loading Prompt...</div>
+        <div class="host-sub-prompt" id="host-sub-prompt"></div>
+        
+        <div id="host-timer" class="timer-display hidden">20</div>
+
+        <div id="host-reveal-area" class="hidden" style="margin: 20px 0; font-size: 1.5rem; background: var(--surface); padding: 20px; border-radius: 15px;"></div>
+
+        <div id="host-lock-status" style="font-size: 1.2rem; font-weight: bold; color: var(--text-muted); margin: 20px 0;">Waiting for answers: 0 / 0</div>
+
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+            <button class="btn btn-surface" id="pause-btn-play" onclick="togglePause()" style="width: auto; padding: 12px 24px;">⏸ PAUSE</button>
+            <button class="btn btn-main hidden" id="host-next-btn" onclick="advanceHostState()" style="width: auto; padding: 12px 24px;">SKIP TIMER ⏭</button>
+            <button class="btn btn-alt hidden" id="host-score-btn" onclick="calculateAndShowScores()" style="width: auto; padding: 12px 24px;">SKIP TIMER ⏭</button>
+            <button class="btn btn-surface" onclick="cancelLobby()" style="width: auto; padding: 12px 24px; border-color: var(--fail); color: var(--fail);">🛑 END GAME</button>
+        </div>
+    </div>
+
+    <div id="host-leaderboard-screen" class="hidden">
+        <h2 style="color:var(--brand); font-size: 2.5rem; margin-top: 0;">STANDINGS</h2>
+        <div id="leaderboard-container" style="margin-bottom: 30px;"></div>
+        
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+            <button class="btn btn-main" id="host-next-round-btn" onclick="cancelLobby()" style="width: auto; padding: 12px 24px;">END GAME & RETURN TO MENU</button>
+        </div>
+    </div>
+
+    <div id="client-play-screen" class="hidden">
+        <div id="client-wait-msg" class="client-wait">Waiting for game to start...</div>
+        
+        <div id="client-double-badge" class="status-badge hidden" style="background: var(--fail); color: white; margin: 10px auto; display: block; width: fit-content;">🔥 DOUBLE POINTS!</div>
+
+        <div id="client-type-badge" class="client-type-badge hidden">THE FINGER POINT</div>
+        <div id="client-timer" class="timer-display hidden" style="font-size: 3.5rem; margin-bottom: 20px;">20</div>
+        
+        <div id="client-ui-container" class="hidden"></div>
+    </div>
+
+</div>
+
+<script>
+    // --- FIREBASE INITIALIZATION ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyAK-y072g7RmxEXt438H6Votoci6T4S9uQ",
+      authDomain: "yardbird-song-trivia.firebaseapp.com",
+      projectId: "yardbird-song-trivia",
+      storageBucket: "yardbird-song-trivia.firebasestorage.app",
+      messagingSenderId: "707080141874",
+      appId: "1:707080141874:web:7a48da42643bc46f69d02b",
+      databaseURL: "https://yardbird-song-trivia-default-rtdb.firebaseio.com" 
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- GAME STATE ---
+    let isHost = false;
+    let roomCode = "";
+    let myPlayerId = "";
+    let numRounds = 5;
+    let currentRoundIdx = 0;
+    let gameQuestions = [];
+    let connectedPlayers = {}; 
+    let useAI = false;
+    
+    // --- TIMERS & PAUSE LOGIC ---
+    let countdownTimer; 
+    let autoAdvanceTimeout;
+    let isPaused = false;
+    let currentHostTime = 20;
+
+    const ROUND_TYPES = {
+        1: "The Finger Point",
+        2: "The Great Divide",
+        3: "Hive Mind",
+        4: "Guilty As Charged",
+        5: "Shot In The Dark"
+    };
+
+    window.onload = () => {
+        const savedKey = localStorage.getItem('consensus_openai_key');
+        if (savedKey) {
+            document.getElementById('api-key-input').value = savedKey;
+        }
+    };
+
+    function showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function toggleSource(source) {
+        useAI = (source === 'ai');
+        document.getElementById('btn-source-offline').classList.toggle('active', !useAI);
+        document.getElementById('btn-source-offline').classList.toggle('btn-main', !useAI);
+        document.getElementById('btn-source-offline').classList.toggle('btn-surface', useAI);
+        
+        document.getElementById('btn-source-ai').classList.toggle('active', useAI);
+        document.getElementById('btn-source-ai').classList.toggle('btn-main', useAI);
+        document.getElementById('btn-source-ai').classList.toggle('btn-surface', !useAI);
+
+        document.getElementById('ai-settings-panel').classList.toggle('hidden', !useAI);
+        document.getElementById('offline-settings-panel').classList.toggle('hidden', useAI);
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        const btnPlay = document.getElementById('pause-btn-play');
+        const btnBoard = document.getElementById('pause-btn-board') || null;
+        
+        if (isPaused) {
+            btnPlay.innerText = "▶ RESUME GAME";
+            btnPlay.classList.replace('btn-surface', 'btn-main');
+            if (btnBoard) {
+                btnBoard.innerText = "▶ RESUME GAME";
+                btnBoard.classList.replace('btn-surface', 'btn-main');
+            }
+            
+            if (countdownTimer) clearInterval(countdownTimer);
+            if (autoAdvanceTimeout) clearTimeout(autoAdvanceTimeout);
+            
+            document.getElementById('host-timer').style.color = "#888"; 
+            
+        } else {
+            btnPlay.innerText = "⏸ PAUSE";
+            btnPlay.classList.replace('btn-main', 'btn-surface');
+            if (btnBoard) {
+                btnBoard.innerText = "⏸ PAUSE";
+                btnBoard.classList.replace('btn-main', 'btn-surface');
+            }
+            
+            document.getElementById('host-timer').style.color = currentHostTime <= 5 ? "var(--fail)" : "var(--highlight)";
+            
+            if (!document.getElementById('host-reveal-area').classList.contains('hidden')) {
+                autoAdvanceTimeout = setTimeout(() => {
+                    currentRoundIdx++;
+                    if (currentRoundIdx >= numRounds) {
+                        document.getElementById('host-play-screen').classList.add('hidden');
+                        renderLeaderboard();
+                        document.getElementById('host-leaderboard-screen').classList.remove('hidden');
+                        document.getElementById('host-next-round-btn').innerText = "END GAME & RETURN TO MENU";
+                    } else {
+                        startNextRound();
+                    }
+                }, 3000);
+            } else if (!document.getElementById('host-play-screen').classList.contains('hidden')) {
+                startCountdown(currentHostTime);
+            }
+        }
+    }
+
+    // --- NAVIGATION & LOBBY LOGIC ---
+    function handleHostSetup() {
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('host-lobby-screen').classList.remove('hidden');
+        isHost = true;
+        createRoom();
+    }
+
+    function handleJoinScreen() {
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('join-screen').classList.remove('hidden');
+    }
+
+    function setRounds(val, el) {
+        document.querySelectorAll('#rounds-group .pill').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+        numRounds = val;
+    }
+
+    function generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        return code;
+    }
+
+    async function createRoom() {
+        roomCode = generateRoomCode();
+        await db.ref(`consensus_rooms/${roomCode}`).set({ state: 'lobby', hostState: { phase: 'waiting' } });
+        document.getElementById('display-room-code').innerText = roomCode;
+        new QRCode(document.getElementById("qr-container"), { text: window.location.origin + window.location.pathname + "?room=" + roomCode, width: 150, height: 150 });
+
+        db.ref(`consensus_rooms/${roomCode}/players`).on('value', snap => {
+            connectedPlayers = snap.val() || {};
+            const count = Object.keys(connectedPlayers).length;
+            document.getElementById('player-count').innerText = count;
+            document.getElementById('start-btn').disabled = count < 1; 
+
+            const listDiv = document.getElementById('lobby-player-list');
+            listDiv.innerHTML = '';
+            Object.values(connectedPlayers).forEach(p => {
+                const tag = document.createElement('div');
+                tag.className = 'pill active';
+                tag.innerText = p.name;
+                listDiv.appendChild(tag);
+            });
+        });
+    }
+
+    async function cancelLobby() {
+        if (roomCode) await db.ref(`consensus_rooms/${roomCode}`).remove(); 
+        location.reload();
+    }
+
+    async function joinRoom() {
+        const code = document.getElementById('join-code').value.toUpperCase();
+        const name = document.getElementById('join-name').value.trim();
+        const fb = document.getElementById('join-feedback');
+        
+        if (code.length !== 4) return fb.innerText = "Invalid code.";
+        if (name.length < 2) return fb.innerText = "Enter a name.";
+
+        const snap = await db.ref(`consensus_rooms/${code}`).once('value');
+        if (!snap.exists() || snap.val().state !== 'lobby') return fb.innerText = "Room not found or game started.";
+
+        roomCode = code;
+        myPlayerId = "p_" + Date.now();
+        await db.ref(`consensus_rooms/${roomCode}/players/${myPlayerId}`).set({ name: name, score: 0 });
+        db.ref(`consensus_rooms/${roomCode}/players/${myPlayerId}`).onDisconnect().remove();
+
+        document.getElementById('join-screen').classList.add('hidden');
+        document.getElementById('client-play-screen').classList.remove('hidden');
+
+        db.ref(`consensus_rooms/${roomCode}`).on('value', snap => {
+            if (!snap.exists()) {
+                alert("The Host has ended the game!");
+                location.reload();
+            }
+        });
+
+        db.ref(`consensus_rooms/${roomCode}/hostState`).on('value', snap => {
+            if (snap.exists()) handleClientUIUpdate(snap.val());
+        });
+
+        db.ref(`consensus_rooms/${roomCode}/timeLeft`).on('value', snap => {
+            if (snap.exists()) {
+                const time = snap.val();
+                const timerEl = document.getElementById('client-timer');
+                timerEl.innerText = time;
+                if (time <= 5) timerEl.style.color = "var(--fail)";
+                else timerEl.style.color = "var(--highlight)";
+            }
+        });
+    }
+
+    // --- HYBRID GENERATOR ---
+    async function generateQuestionsAndStart() {
+        const startBtn = document.getElementById('start-btn');
+        startBtn.innerText = "LOADING PROMPTS...";
+        startBtn.disabled = true;
+
+        if (useAI) {
+            const apiKey = document.getElementById('api-key-input').value.trim();
+            if (!apiKey) {
+                alert("Please paste your OpenAI API Key to generate questions!");
+                startBtn.innerText = "GENERATE & START";
+                startBtn.disabled = false;
+                return;
+            }
+            localStorage.setItem('consensus_openai_key', apiKey);
+            const playerNames = Object.values(connectedPlayers).map(p => p.name);
+            
+            const wildcardThemes = [
+                "Awkward high school memories", "Weird food combinations", "Minor daily inconveniences",
+                "Bad superpowers", "Corporate office jargon", "Holiday family drama", "Action movie cliches",
+                "Fictional creatures", "Laziness", "Overpriced luxury items", "Bizarre conspiracy theories",
+                "Strange animal facts", "Terrible fashion trends", "Survival in the wilderness", "Technology failing",
+                "Things you do when nobody is watching", "Overly competitive board games", "Terrible life hacks",
+                "Unwritten rules of society", "Things that smell weird but good", "Irrational childhood fears",
+                "Places you shouldn't laugh", "Awkward elevator rides", "Overrated vacation spots", "Bad haircuts",
+                "Things you'd buy if you won the lottery", "Passive-aggressive texts", "Weird neighbor behavior",
+                "The worst possible pizza toppings", "Things you've successfully hidden from your parents",
+                "Obscure historical events", "Things you'd do in a zombie apocalypse", "Useless talents",
+                "Things you've Googled at 3 AM", "Uncomfortable silences", "Things you forget to pack",
+                "Getting lost in a grocery store", "Over-the-top romantic gestures", "Things pets probably think about us",
+                "The worst song to play at a funeral", "Things that are surprisingly sticky", "Bad advice you took",
+                "Things you pretend to understand but don't", "Weird dreams", "Things you'd put in a time capsule",
+                "The most annoying sound in the world", "Things that are instantly regrettable", "Bizarre phobias",
+                "Things you shouldn't DIY", "The worst superpower for a chef to have", "Things aliens would find confusing",
+                "Awkward small talk", "Things you do when the internet goes out", "Ridiculous impulse buys",
+                "Things you've blamed on someone else", "The worst place to fall asleep", "Things you can't unsee",
+                "Odd superstitions", "Things you only do in hotels", "Weirdly specific pet peeves", "Bad karaoke choices",
+                "Things you thought were cool 10 years ago", "The worst roommate habits", "Things you overthink",
+                "Overdramatic reactions", "Things you've dropped in the toilet", "Ridiculous morning routines"
+            ];
+            const shuffledThemes = wildcardThemes.sort(() => 0.5 - Math.random()).slice(0, numRounds);
+
+            const systemPrompt = `You are a creative, unpredictable party game writer. Your job is to generate highly engaging, funny, strictly G-rated questions for a consensus game.
+            Players in the room: ${playerNames.join(', ')}. Total rounds needed: ${numRounds}.
+            
+            CRITICAL ANTI-REPETITION RULES:
+            - DO NOT use generic questions (e.g., no "Pizza vs Tacos", no "Beach vs Mountains").
+            - Be highly specific, obscure, and absurd.
+            - Here is a list of ${numRounds} completely random themes: ${shuffledThemes.join(' | ')}.
+            - You MUST use a DIFFERENT theme from this list for EACH of the ${numRounds} questions you generate. Do not repeat themes.
+            
+            You must randomly distribute the questions across these 5 types:
+            - Type 1 (Who is most likely to): {"type": 1, "prompt": "Who is most likely to...?"}
+            - Type 2 (This or That): {"type": 2, "prompt": "Which is superior?", "optA": "...", "optB": "..."}
+            - Type 3 (Family Feud): {"type": 3, "prompt": "Name a...", "options": ["#1 Answer", "#2 Answer", "#3 Answer", "Fake Answer"]}
+            - Type 4 (Raise your hand): {"type": 4, "prompt": "Raise your hand if you have ever..."}
+            - Type 5 (Guesstimation): {"type": 5, "prompt": "Guess the exact number of...", "answer": <INSERT_REAL_NUMBER>} (Answer MUST be an exact, historically or scientifically accurate integer. DO NOT just use 1234).
+            
+            RETURN FORMAT: You must return a JSON object with a single key called "questions" containing the array of question objects.`;
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini",
+                        messages: [{ role: "system", content: systemPrompt }],
+                        response_format: { type: "json_object" },
+                        temperature: 1.1 
+                    })
+                });
+
+                if (!response.ok) throw new Error("OpenAI API Error");
+                const data = await response.json();
+                gameQuestions = JSON.parse(data.choices[0].message.content).questions; 
+                
+                // INJECT DOUBLE POINTS ROUNDS (Excluding index 0 / Round 1)
+                const numDoubleRounds = Math.floor(numRounds / 5);
+                let availableIndices = [];
+                for (let i = 1; i < numRounds; i++) availableIndices.push(i);
+                
+                availableIndices = availableIndices.sort(() => 0.5 - Math.random());
+                let doubleIndices = availableIndices.slice(0, numDoubleRounds);
+                doubleIndices.forEach(idx => {
+                    if(gameQuestions[idx]) gameQuestions[idx].isDoublePoints = true;
+                });
+                
+                startGameLoop();
+
+            } catch (error) {
+                alert("AI Error. Check your API key and try again.");
+                startBtn.innerText = "GENERATE & START";
+                startBtn.disabled = false;
+            }
+
+        } else {
+            try {
+                const response = await fetch('db_questions.json');
+                if (!response.ok) throw new Error("Could not load local question database.");
+                const dbJson = await response.json();
+                
+                gameQuestions = [];
+                let typeTracker = 1;
+                
+                for (let i = 0; i < numRounds; i++) {
+                    const pool = dbJson[`type${typeTracker}`];
+                    const randomQ = pool[Math.floor(Math.random() * pool.length)];
+                    gameQuestions.push(randomQ);
+                    
+                    typeTracker++;
+                    if (typeTracker > 5) typeTracker = 1;
+                }
+                
+                gameQuestions = gameQuestions.sort(() => 0.5 - Math.random());
+                
+                // INJECT DOUBLE POINTS ROUNDS (Excluding index 0 / Round 1)
+                const numDoubleRounds = Math.floor(numRounds / 5);
+                let availableIndices = [];
+                for (let i = 1; i < numRounds; i++) availableIndices.push(i);
+                
+                availableIndices = availableIndices.sort(() => 0.5 - Math.random());
+                let doubleIndices = availableIndices.slice(0, numDoubleRounds);
+                doubleIndices.forEach(idx => {
+                    if(gameQuestions[idx]) gameQuestions[idx].isDoublePoints = true;
+                });
+
+                startGameLoop();
+
+            } catch (error) {
+                console.error(error);
+                alert("Error loading db_questions.json! Make sure the file is uploaded to the server.");
+                startBtn.innerText = "GENERATE & START";
+                startBtn.disabled = false;
+            }
+        }
+    }
+
+    async function startGameLoop() {
+        document.getElementById('host-lobby-screen').classList.add('hidden');
+        document.getElementById('host-play-screen').classList.remove('hidden');
+        await db.ref(`consensus_rooms/${roomCode}`).update({ state: 'playing' });
+        startNextRound();
+    }
+
+    // --- TIMER & AUTO-ADVANCE LOGIC ---
+    function startCountdown(duration) {
+        clearInterval(countdownTimer);
+        currentHostTime = duration;
+        
+        const hostTimerEl = document.getElementById('host-timer');
+        hostTimerEl.innerText = currentHostTime;
+        hostTimerEl.style.color = currentHostTime <= 5 ? "var(--fail)" : "var(--highlight)";
+        hostTimerEl.classList.remove('hidden');
+        
+        db.ref(`consensus_rooms/${roomCode}/timeLeft`).set(currentHostTime);
+
+        countdownTimer = setInterval(() => {
+            if (isPaused) return; 
+            
+            currentHostTime--;
+            hostTimerEl.innerText = currentHostTime;
+            db.ref(`consensus_rooms/${roomCode}/timeLeft`).set(currentHostTime);
+            
+            if (currentHostTime <= 5) hostTimerEl.style.color = "var(--fail)";
+
+            if (currentHostTime <= 0) {
+                clearInterval(countdownTimer);
+                autoAdvance();
+            }
+        }, 1000);
+    }
+
+    function autoAdvance() {
+        if (!document.getElementById('host-next-btn').classList.contains('hidden')) {
+            advanceHostState();
+        } else if (!document.getElementById('host-score-btn').classList.contains('hidden')) {
+            calculateAndShowScores();
+        }
+    }
+
+    // --- HOST GAME LOOP ---
+    async function startNextRound() {
+        if (autoAdvanceTimeout) clearTimeout(autoAdvanceTimeout);
+        isPaused = false; 
+        document.getElementById('pause-btn-play').innerText = "⏸ PAUSE";
+        document.getElementById('pause-btn-play').classList.replace('btn-main', 'btn-surface');
+        
+        document.getElementById('host-leaderboard-screen').classList.add('hidden');
+        document.getElementById('host-play-screen').classList.remove('hidden');
+        document.getElementById('host-next-btn').classList.add('hidden');
+        document.getElementById('host-score-btn').classList.add('hidden');
+        document.getElementById('host-reveal-area').classList.add('hidden');
+        document.getElementById('host-double-badge').classList.add('hidden');
+
+        let updates = {};
+        Object.keys(connectedPlayers).forEach(pid => {
+            updates[`consensus_rooms/${roomCode}/players/${pid}/guess1`] = null;
+            updates[`consensus_rooms/${roomCode}/players/${pid}/guess2`] = null;
+        });
+        await db.ref().update(updates);
+
+        const q = gameQuestions[currentRoundIdx];
+        document.getElementById('host-round-badge').innerText = `ROUND ${currentRoundIdx + 1} / ${numRounds}`;
+        document.getElementById('host-type-badge').innerText = ROUND_TYPES[q.type];
+        document.getElementById('host-prompt').innerText = q.prompt;
+
+        if (q.isDoublePoints) {
+            document.getElementById('host-double-badge').classList.remove('hidden');
+        }
+
+        let subPrompt = "";
+        if (q.type === 1) subPrompt = "Vote for someone else on your phone!";
+        if (q.type === 2) subPrompt = "Choose your favorite on your phone!";
+        if (q.type === 3) subPrompt = "Pick the #1 survey answer on your phone!";
+        if (q.type === 4) subPrompt = "Look at your phone!";
+        if (q.type === 5) subPrompt = "Type your closest guess!";
+        document.getElementById('host-sub-prompt').innerText = subPrompt;
+
+        startCountdown(20);
+
+        const hostState = { type: q.type, phase: 'input1', qData: q };
+        await db.ref(`consensus_rooms/${roomCode}/hostState`).set(hostState);
+        listenForLocks('guess1');
+    }
+
+    function listenForLocks(guessKey) {
+        db.ref(`consensus_rooms/${roomCode}/players`).on('value', snap => {
+            connectedPlayers = snap.val() || {};
+            let locked = 0;
+            const total = Object.keys(connectedPlayers).length;
+            
+            Object.values(connectedPlayers).forEach(p => { 
+                if (p[guessKey] !== undefined && p[guessKey] !== null) locked++; 
+            });
+            
+            document.getElementById('host-lock-status').innerText = `Locked In: ${locked} / ${total}`;
+
+            if (locked === total && total > 0 && !isPaused) {
+                clearInterval(countdownTimer);
+                setTimeout(autoAdvance, 1000); 
+            }
+        });
+    }
+
+    async function advanceHostState() {
+        clearInterval(countdownTimer); 
+        const q = gameQuestions[currentRoundIdx];
+        
+        if (q.type === 2 || q.type === 4) {
+            document.getElementById('host-sub-prompt').innerText = q.type === 2 ? "Now, what did the ROOM pick?" : "Now, guess how many hands are raised!";
+            document.getElementById('host-next-btn').classList.add('hidden');
+            document.getElementById('host-score-btn').classList.remove('hidden');
+            
+            startCountdown(20);
+
+            await db.ref(`consensus_rooms/${roomCode}/hostState`).set({ type: q.type, phase: 'input2', qData: q });
+            listenForLocks('guess2');
+        } else {
+            calculateAndShowScores();
+        }
+    }
+
+    async function calculateAndShowScores() {
+        clearInterval(countdownTimer);
+        document.getElementById('host-timer').classList.add('hidden');
+        db.ref(`consensus_rooms/${roomCode}/players`).off('value'); 
+        
+        document.getElementById('host-next-btn').classList.add('hidden');
+        document.getElementById('host-score-btn').classList.add('hidden');
+        
+        await db.ref(`consensus_rooms/${roomCode}/hostState`).set({ phase: 'reveal' });
+
+        const q = gameQuestions[currentRoundIdx];
+        const revealArea = document.getElementById('host-reveal-area');
+        revealArea.classList.remove('hidden');
+        revealArea.innerHTML = "";
+        
+        let updates = {};
+        const mult = q.isDoublePoints ? 2 : 1;
+
+        if (q.type === 1) {
+            let votes = {};
+            Object.values(connectedPlayers).forEach(p => {
+                if(p.guess1) votes[p.guess1] = (votes[p.guess1] || 0) + 1;
+            });
+            let sorted = Object.keys(votes).sort((a,b) => votes[b] - votes[a]);
+            revealArea.innerHTML = `Most Voted: <strong style="color:var(--brand)">${connectedPlayers[sorted[0]]?.name || 'Nobody'}</strong>`;
+            
+            if(sorted[0]) updates[`consensus_rooms/${roomCode}/players/${sorted[0]}/score`] = connectedPlayers[sorted[0]].score + (3 * mult);
+            if(sorted[1]) updates[`consensus_rooms/${roomCode}/players/${sorted[1]}/score`] = connectedPlayers[sorted[1]].score + (2 * mult);
+            if(sorted[2]) updates[`consensus_rooms/${roomCode}/players/${sorted[2]}/score`] = connectedPlayers[sorted[2]].score + (1 * mult);
+        } 
+        else if (q.type === 2) {
+            let aVotes = 0, bVotes = 0;
+            Object.values(connectedPlayers).forEach(p => p.guess1 === 'A' ? aVotes++ : bVotes++);
+            let roomWinner = aVotes > bVotes ? 'A' : (bVotes > aVotes ? 'B' : 'Tie');
+            
+            revealArea.innerHTML = `The Room Chose: <strong style="color:var(--brand)">${roomWinner === 'A' ? q.optA : q.optB}</strong>`;
+            
+            Object.keys(connectedPlayers).forEach(pid => {
+                if (connectedPlayers[pid].guess2 === roomWinner) {
+                    updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (3 * mult);
+                }
+            });
+        }
+        else if (q.type === 3) {
+            revealArea.innerHTML = `Top Answer: <strong style="color:var(--brand)">${q.options[0]}</strong><br>#2: ${q.options[1]}<br>#3: ${q.options[2]}`;
+            Object.keys(connectedPlayers).forEach(pid => {
+                let g = connectedPlayers[pid].guess1;
+                let pts = g === 0 ? 3 : (g === 1 ? 2 : (g === 2 ? 1 : 0));
+                updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (pts * mult);
+            });
+        }
+        else if (q.type === 4) {
+            let raised = 0;
+            Object.values(connectedPlayers).forEach(p => { if(p.guess1) raised++; });
+            revealArea.innerHTML = `Total Hands Raised: <strong style="color:var(--brand)">${raised}</strong>`;
+            
+            Object.keys(connectedPlayers).forEach(pid => {
+                if (parseInt(connectedPlayers[pid].guess2) === raised) {
+                    updates[`consensus_rooms/${roomCode}/players/${pid}/score`] = connectedPlayers[pid].score + (3 * mult);
+                }
+            });
+        }
+        else if (q.type === 5) {
+            revealArea.innerHTML = `Actual Answer: <strong style="color:var(--brand)">${q.answer}</strong>`;
+            
+            let diffs = [];
+            Object.keys(connectedPlayers).forEach(pid => {
+                if(connectedPlayers[pid].guess1) {
+                    diffs.push({ pid: pid, diff: Math.abs(q.answer - parseInt(connectedPlayers[pid].guess1)) });
+                }
+            });
+            diffs.sort((a,b) => a.diff - b.diff);
+            
+            if(diffs[0]) updates[`consensus_rooms/${roomCode}/players/${diffs[0].pid}/score`] = connectedPlayers[diffs[0].pid].score + (3 * mult);
+            if(diffs[1]) updates[`consensus_rooms/${roomCode}/players/${diffs[1].pid}/score`] = connectedPlayers[diffs[1].pid].score + (2 * mult);
+            if(diffs[2]) updates[`consensus_rooms/${roomCode}/players/${diffs[2].pid}/score`] = connectedPlayers[diffs[2].pid].score + (1 * mult);
+        }
+
+        if(Object.keys(updates).length > 0) await db.ref().update(updates);
+        
+        if (currentRoundIdx + 1 < numRounds) {
+            revealArea.innerHTML += `<div style="margin-top: 25px; font-size: 1.2rem; color: var(--p4); font-weight: bold; text-transform: uppercase; animation: pulse 1.5s infinite;">Get ready for the next round...</div>`;
+        }
+
+        autoAdvanceTimeout = setTimeout(() => {
+            currentRoundIdx++;
+
+            if (currentRoundIdx >= numRounds) {
+                document.getElementById('host-play-screen').classList.add('hidden');
+                renderLeaderboard();
+                document.getElementById('host-leaderboard-screen').classList.remove('hidden');
+                document.getElementById('host-next-round-btn').innerText = "END GAME & RETURN TO MENU";
+            } else {
+                startNextRound();
+            }
+
+        }, 5000); 
+    }
+
+    function renderLeaderboard() {
+        db.ref(`consensus_rooms/${roomCode}/players`).once('value', snap => {
+            const players = snap.val();
+            const arr = Object.values(players).sort((a,b) => b.score - a.score);
+            let html = "";
+            
+            arr.forEach((p, i) => {
+                let medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : ''));
+                let bColor = i === 0 ? 'var(--p4)' : (i === 1 ? '#cbd5e1' : (i === 2 ? '#b45309' : 'var(--border)'));
+                let fontSz = i === 0 ? '1.8rem' : (i === 1 ? '1.5rem' : '1.2rem');
+                let tColor = i < 3 ? '#fff' : 'var(--text-muted)';
+                
+                html += `<div class="leaderboard-row" style="border-color:${bColor}; color:${tColor}; font-size:${fontSz};">
+                    <span>${medal} ${p.name}</span>
+                    <span style="color:var(--brand); font-size: 1.2em;">${p.score}</span>
+                </div>`;
+            });
+            document.getElementById('leaderboard-container').innerHTML = html;
+        });
+    }
+
+    // --- CLIENT UI LOGIC ---
+    function handleClientUIUpdate(state) {
+        const ui = document.getElementById('client-ui-container');
+        const waitMsg = document.getElementById('client-wait-msg');
+        const typeBadge = document.getElementById('client-type-badge');
+        const dblBadge = document.getElementById('client-double-badge');
+        const timer = document.getElementById('client-timer');
+        
+        if (state.phase === 'reveal' || state.phase === 'waiting' || state.phase === 'loading') {
+            ui.classList.add('hidden');
+            typeBadge.classList.add('hidden');
+            dblBadge.classList.add('hidden');
+            timer.classList.add('hidden');
+            waitMsg.classList.remove('hidden');
+            
+            if (state.phase === 'waiting') {
+                waitMsg.innerText = "Waiting for game to start...";
+            } else {
+                waitMsg.innerText = "Look at the TV!";
+            }
+            return;
+        }
+
+        ui.classList.remove('hidden');
+        waitMsg.classList.add('hidden');
+        typeBadge.classList.remove('hidden');
+        timer.classList.remove('hidden');
+        
+        typeBadge.innerText = ROUND_TYPES[state.type];
+
+        if (state.qData && state.qData.isDoublePoints) {
+            dblBadge.classList.remove('hidden');
+        } else {
+            dblBadge.classList.add('hidden');
+        }
+
+        ui.innerHTML = "";
+        const q = state.qData;
+
+        if (state.type === 1 && state.phase === 'input1') {
+            db.ref(`consensus_rooms/${roomCode}/players`).once('value', snap => {
+                const players = snap.val();
+                Object.keys(players).forEach(pid => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-surface';
+                    btn.innerText = players[pid].name + (pid === myPlayerId ? " (You)" : "");
+                    
+                    if (pid === myPlayerId) {
+                        btn.disabled = true; 
+                    } else {
+                        btn.onclick = () => sendClientGuess('guess1', pid);
+                    }
+                    ui.appendChild(btn);
+                });
+            });
+        } 
+        else if (state.type === 2) {
+            if (state.phase === 'input1') {
+                ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess1', 'A')">${q.optA}</button>`;
+                ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess1', 'B')">${q.optB}</button>`;
+            } else if (state.phase === 'input2') {
+                ui.innerHTML += `<div style="margin-bottom:15px; font-weight:bold; font-size: 1.2rem;">What did the room pick?</div>`;
+                ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess2', 'A')">${q.optA}</button>`;
+                ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess2', 'B')">${q.optB}</button>`;
+            }
+        }
+        else if (state.type === 3 && state.phase === 'input1') {
+            q.options.forEach((opt, idx) => {
+                ui.innerHTML += `<button class="btn btn-surface" onclick="sendClientGuess('guess1', ${idx})">${opt}</button>`;
+            });
+        }
+        else if (state.type === 4) {
+            if (state.phase === 'input1') {
+                ui.innerHTML += `<button class="btn big-hand-btn" onclick="sendClientGuess('guess1', true)">🖐️</button>`;
+                ui.innerHTML += `<button class="btn btn-surface" style="margin-top:20px;" onclick="sendClientGuess('guess1', false)">Skip (Not Me)</button>`;
+            } else if (state.phase === 'input2') {
+                ui.innerHTML += `<input type="number" id="num-guess" placeholder="Total Hands Raised?">`;
+                ui.innerHTML += `<button class="btn btn-main" onclick="sendClientGuess('guess2', document.getElementById('num-guess').value)">SUBMIT</button>`;
+            }
+        }
+        else if (state.type === 5 && state.phase === 'input1') {
+            ui.innerHTML += `<input type="number" id="num-guess" placeholder="Your Guess">`;
+            ui.innerHTML += `<button class="btn btn-main" onclick="sendClientGuess('guess1', document.getElementById('num-guess').value)">SUBMIT</button>`;
+        }
+    }
+
+    function sendClientGuess(guessKey, value) {
+        db.ref(`consensus_rooms/${roomCode}/players/${myPlayerId}/${guessKey}`).set(value);
+        document.getElementById('client-ui-container').innerHTML = `<h2 style="color:var(--success); font-size: 2rem;">Locked In!</h2>`;
+    }
+
+</script>
+</body>
+</html>
