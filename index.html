@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Consensus Party Game</title>
+    <title>Yardbird's The Consensus</title>
 
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f172a"> <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -87,9 +92,29 @@
     </div>
 </div>
 
+<div id="info-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h2>How to Play</h2>
+        <div style="font-size: 1rem; line-height: 1.6; color: #ccc;">
+            <p><strong>Yardbird's The Consensus</strong> is a party game where you use your phone as a controller to vote, guess, and debate with your friends.</p>
+            <p><strong>To Start:</strong> One person clicks <strong>Host a Game</strong> on a big screen (TV or laptop). Everyone else scans the QR code or enters the 4-letter room code on their phones to join.</p>
+            <p><strong>The Goal:</strong> Score points across 5 different game types:</p>
+            <ul style="padding-left: 20px;">
+                <li><strong>The Finger Point:</strong> Vote for the player who fits the prompt best.</li>
+                <li><strong>The Great Divide:</strong> Pick your favorite, then guess what the majority of the room picked.</li>
+                <li><strong>Hive Mind:</strong> Guess the #1 most popular survey answer.</li>
+                <li><strong>Guilty As Charged:</strong> Secretly confess to the prompt, then guess how many total hands were raised.</li>
+                <li><strong>Shot In The Dark:</strong> The closest numeric guess wins.</li>
+            </ul>
+        </div>
+        <button class="btn btn-main" onclick="hideModal('info-modal')" style="margin-top: 15px;">Let's Play!</button>
+    </div>
+</div>
+
 <div class="container">
-    <div id="header">
-        <h1>The Consensus</h1>
+    <div id="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <div style="width: 40px;"></div> <h1 style="margin: 0; font-size: 1.8rem; text-align: center; letter-spacing: 1px;">Yardbird's<br>The Consensus</h1>
+        <button onclick="showModal('info-modal')" style="background: transparent; border: 2px solid var(--border); color: var(--text-muted); border-radius: 50%; width: 40px; height: 40px; font-size: 1.2rem; font-family: serif; font-style: italic; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">i</button>
     </div>
 
     <div id="menu-screen">
@@ -99,8 +124,8 @@
         <div style="font-size:0.8rem; color:var(--text-muted);">Use your phone as a controller</div>
         
         <div style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: var(--text-muted); font-weight: bold;">
-            Version 1.2<br>
-            <span style="font-weight: normal; color: #666;">Karthik Raja Developer</span>
+            Version 1.3<br>
+            <span style="font-weight: normal; color: #666;">Developed byKarthik Raja, 2026</span>
         </div>
     </div>
 
